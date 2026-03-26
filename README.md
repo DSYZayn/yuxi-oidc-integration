@@ -1,7 +1,7 @@
 # Yuxi-Know OIDC 认证集成指南
 
 本文档介绍如何为 Yuxi-Know 项目集成 OIDC (OpenID Connect) 认证登录功能。
-(由于是纯vibe coding实现，所以没敢直接pr，而是以插件项目提供)
+(由于～～是纯vibe coding实现～～没时间写测试，所以没敢直接pr，而是以插件项目提供)
 ## 功能特性
 
 - ✅ 支持标准 OIDC 协议
