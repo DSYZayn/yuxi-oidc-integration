@@ -53,7 +53,7 @@ const goToLogin = () => {
 // 处理 OIDC 回调 - 从 URL 参数中获取 token 数据
 const handleCallback = () => {
   try {
-    // 从 URL 参数中获取 token 数据（由后端 HTML 页面传递）
+    // 从 URL 参数中获取 token 数据（由后端直接重定向传递）
     const token = route.query.token
     const userId = route.query.user_id
     const username = route.query.username

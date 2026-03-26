@@ -2,8 +2,9 @@
 
 此模块包含 OIDC 认证相关的路由，需要被导入到主 auth_router.py 中使用。
 """
+from urllib.parse import urlencode
 from fastapi import Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from yuxi.utils import logger
@@ -16,6 +17,11 @@ from server.utils.oidc_config import oidc_config
 from server.utils.oidc_utils import OIDCUtils
 from server.utils.common_utils import log_operation
 from yuxi.utils.datetime_utils import utc_now_naive
+
+# 前端 OIDC 回调路由路径（与 web/src/router/index.js 中的路由保持一致）
+FRONTEND_CALLBACK_PATH = "/auth/oidc/callback"
+# 登录页路径（用于错误重定向）
+FRONTEND_LOGIN_PATH = "/login"
 
 
 # =============================================================================
@@ -124,228 +130,32 @@ async def update_oidc_user_login(db, user: User) -> None:
     await db.commit()
 
 
-def generate_callback_html(token_data: dict, redirect_path: str = "/") -> str:
-    """生成 OIDC 回调 HTML 页面
+def _redirect_to_callback(token_data: dict) -> RedirectResponse:
+    """成功后重定向到前端 OIDC 回调页面，通过 URL 参数传递登录数据"""
+    params: dict = {
+        "token": token_data["access_token"],
+        "user_id": str(token_data["user_id"]),
+        "username": token_data["username"],
+        "user_id_login": token_data["user_id_login"],
+        "role": token_data["role"],
+    }
+    if token_data.get("phone_number"):
+        params["phone_number"] = token_data["phone_number"]
+    if token_data.get("avatar"):
+        params["avatar"] = token_data["avatar"]
+    if token_data.get("department_id") is not None:  # 0 is a valid id, so check explicitly
+        params["department_id"] = str(token_data["department_id"])
+    if token_data.get("department_name"):
+        params["department_name"] = token_data["department_name"]
 
-    此页面自动将 token 存储到 localStorage 并重定向到前端
-    """
-    import json
-
-    # 构建前端回调 URL
-    frontend_callback_url = "/auth/oidc/callback"
-
-    html_content = f"""<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>登录处理中...</title>
-    <style>
-        * {{
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }}
-        body {{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }}
-        .container {{
-            text-align: center;
-            color: white;
-            padding: 40px;
-        }}
-        .spinner {{
-            width: 50px;
-            height: 50px;
-            border: 4px solid rgba(255, 255, 255, 0.3);
-            border-top-color: white;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 20px;
-        }}
-        @keyframes spin {{
-            to {{ transform: rotate(360deg); }}
-        }}
-        h1 {{
-            font-size: 24px;
-            font-weight: 500;
-            margin-bottom: 10px;
-        }}
-        p {{
-            font-size: 14px;
-            opacity: 0.9;
-        }}
-        .error {{
-            background: rgba(255, 255, 255, 0.95);
-            color: #333;
-            padding: 30px;
-            border-radius: 12px;
-            max-width: 400px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-        }}
-        .error h2 {{
-            color: #e74c3c;
-            margin-bottom: 10px;
-        }}
-        .error p {{
-            color: #666;
-            margin-bottom: 20px;
-        }}
-        .error button {{
-            background: #667eea;
-            color: white;
-            border: none;
-            padding: 12px 30px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-        }}
-        .error button:hover {{
-            background: #5a6fd6;
-        }}
-    </style>
-</head>
-<body>
-    <div class="container" id="container">
-        <div class="spinner"></div>
-        <h1>登录成功</h1>
-        <p>正在跳转，请稍候...</p>
-    </div>
-
-    <script>
-        (function() {{
-            try {{
-                // Token 数据
-                const tokenData = {json.dumps(token_data, ensure_ascii=False)};
-
-                // 存储 token 到 localStorage
-                localStorage.setItem('user_token', tokenData.access_token);
-
-                // 构建前端回调 URL，传递必要的数据
-                const params = new URLSearchParams({{
-                    token: tokenData.access_token,
-                    user_id: String(tokenData.user_id),
-                    username: tokenData.username,
-                    user_id_login: tokenData.user_id_login,
-                    role: tokenData.role,
-                }});
-
-                if (tokenData.phone_number) {{
-                    params.set('phone_number', tokenData.phone_number);
-                }}
-                if (tokenData.avatar) {{
-                    params.set('avatar', tokenData.avatar);
-                }}
-                if (tokenData.department_id) {{
-                    params.set('department_id', String(tokenData.department_id));
-                }}
-                if (tokenData.department_name) {{
-                    params.set('department_name', tokenData.department_name);
-                }}
-
-                // 重定向到前端回调页面
-                const redirectUrl = '{frontend_callback_url}?' + params.toString();
-                window.location.href = redirectUrl;
-
-            }} catch (error) {{
-                console.error('OIDC callback error:', error);
-                document.getElementById('container').innerHTML = `
-                    <div class="error">
-                        <h2>登录处理失败</h2>
-                        <p>无法完成登录，请返回登录页重试</p>
-                        <button onclick="window.location.href='/login'">返回登录页</button>
-                    </div>
-                `;
-            }}
-        }})();
-    </script>
-</body>
-</html>"""
-    return html_content
+    url = f"{FRONTEND_CALLBACK_PATH}?{urlencode(params)}"
+    return RedirectResponse(url=url, status_code=302)
 
 
-def generate_error_html(error_message: str) -> str:
-    """生成错误页面 HTML"""
-    return f"""<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>登录失败</title>
-    <style>
-        * {{
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }}
-        body {{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }}
-        .error-container {{
-            background: rgba(255, 255, 255, 0.95);
-            padding: 40px;
-            border-radius: 16px;
-            text-align: center;
-            max-width: 400px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-        }}
-        .error-icon {{
-            width: 60px;
-            height: 60px;
-            background: #e74c3c;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 20px;
-            color: white;
-            font-size: 30px;
-        }}
-        h1 {{
-            color: #333;
-            font-size: 22px;
-            margin-bottom: 10px;
-        }}
-        p {{
-            color: #666;
-            font-size: 14px;
-            margin-bottom: 25px;
-            line-height: 1.6;
-        }}
-        button {{
-            background: #667eea;
-            color: white;
-            border: none;
-            padding: 12px 30px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: background 0.3s;
-        }}
-        button:hover {{
-            background: #5a6fd6;
-        }}
-    </style>
-</head>
-<body>
-    <div class="error-container">
-        <div class="error-icon">✕</div>
-        <h1>登录失败</h1>
-        <p>{error_message}</p>
-        <button onclick="window.location.href='/login'">返回登录页</button>
-    </div>
-</body>
-</html>"""
+def _redirect_to_login_with_error(error_message: str) -> RedirectResponse:
+    """失败时重定向到登录页并携带错误信息"""
+    url = f"{FRONTEND_LOGIN_PATH}?{urlencode({'oidc_error': error_message})}"
+    return RedirectResponse(url=url, status_code=302)
 
 
 # =============================================================================
@@ -362,49 +172,33 @@ async def get_oidc_config_handler():
 
 
 async def oidc_callback_handler(request: Request, code: str, state: str, db):
-    """处理 OIDC 回调 - 返回 HTML 页面而不是 JSON"""
-    from fastapi import HTTPException, status
+    """处理 OIDC 回调 - 重定向到前端 Vue 路由"""
 
     # 验证 state
     state_data = OIDCUtils.verify_state(state)
     if not state_data:
-        return HTMLResponse(
-            content=generate_error_html("登录会话已过期，请返回登录页重试"),
-            status_code=400
-        )
+        return _redirect_to_login_with_error("登录会话已过期，请返回登录页重试")
 
     # 用授权码交换令牌
     token_response = await OIDCUtils.exchange_code_for_token(code)
     if not token_response:
-        return HTMLResponse(
-            content=generate_error_html("无法获取访问令牌，请返回登录页重试"),
-            status_code=400
-        )
+        return _redirect_to_login_with_error("无法获取访问令牌，请返回登录页重试")
 
     access_token = token_response.get("access_token")
     if not access_token:
-        return HTMLResponse(
-            content=generate_error_html("无法获取访问令牌，请返回登录页重试"),
-            status_code=400
-        )
+        return _redirect_to_login_with_error("无法获取访问令牌，请返回登录页重试")
 
     # 获取用户信息
     userinfo = await OIDCUtils.get_userinfo(access_token)
     if not userinfo:
-        return HTMLResponse(
-            content=generate_error_html("无法获取用户信息，请返回登录页重试"),
-            status_code=400
-        )
+        return _redirect_to_login_with_error("无法获取用户信息，请返回登录页重试")
 
     # 提取用户信息
     extracted_info = OIDCUtils.extract_user_info(userinfo)
     sub = extracted_info["sub"]
 
     if not sub:
-        return HTMLResponse(
-            content=generate_error_html("无法获取用户标识，请返回登录页重试"),
-            status_code=400
-        )
+        return _redirect_to_login_with_error("无法获取用户标识，请返回登录页重试")
 
     # 查找或创建用户
     user = await find_user_by_oidc_sub(db, sub)
@@ -421,17 +215,11 @@ async def oidc_callback_handler(request: Request, code: str, state: str, db):
         # 创建新用户
         user = await create_oidc_user(db, extracted_info, department_id)
     else:
-        return HTMLResponse(
-            content=generate_error_html("用户未注册，请联系管理员开通账号"),
-            status_code=403
-        )
+        return _redirect_to_login_with_error("用户未注册，请联系管理员开通账号")
 
     # 检查用户是否被删除
     if user.is_deleted:
-        return HTMLResponse(
-            content=generate_error_html("该账户已注销"),
-            status_code=403
-        )
+        return _redirect_to_login_with_error("该账户已注销")
 
     # 生成访问令牌
     token_data = {"sub": str(user.id)}
@@ -460,14 +248,8 @@ async def oidc_callback_handler(request: Request, code: str, state: str, db):
         "department_name": department_name,
     }
 
-    # 获取重定向路径
-    redirect_path = state_data.get("redirect_path", "/")
-
-    # 返回 HTML 页面，自动处理登录并重定向
-    return HTMLResponse(
-        content=generate_callback_html(response_data, redirect_path),
-        status_code=200
-    )
+    # 重定向到前端 OIDC 回调 Vue 页面
+    return _redirect_to_callback(response_data)
 
 
 async def oidc_login_url_handler(redirect_path: str = "/"):

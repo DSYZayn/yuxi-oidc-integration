@@ -32,8 +32,8 @@ yuxi-oidc-integration/
     └── src/
         ├── apis/
         │   └── auth_api.js                # 认证相关 API
-        ├── views/
-            ├── LoginView_oidc.vue         # 登录页面 用于替换LoginView.vue
+        └── views/
+            ├── LoginView_oidc.vue         # 登录页面（替换原 LoginView.vue）
             └── OIDCCallbackView.vue       # OIDC 回调处理页面
 ```
 
@@ -76,9 +76,11 @@ cp web/src/views/OIDCCallbackView.vue /path/to/your/project/web/src/views/
 cp web/src/views/LoginView_oidc.vue /path/to/your/project/web/src/views/LoginView.vue
 ```
 
-### 3. 添加路由
+### 3. 添加前端路由
 
-在 `web/src/router/index.js` 中添加 OIDC 回调路由：
+> **这一步是必须手动完成的**，安装脚本不会自动修改宿主仓库的路由配置。
+
+在 `web/src/router/index.js` 中注册 OIDC 回调路由。找到路由数组（通常为 `routes` 变量），添加以下条目：
 
 ```javascript
 {
@@ -88,6 +90,13 @@ cp web/src/views/LoginView_oidc.vue /path/to/your/project/web/src/views/LoginVie
   meta: { public: true }
 }
 ```
+
+**要点说明：**
+
+- `path` 必须与后端 `auth_router_oidc.py` 中的 `FRONTEND_CALLBACK_PATH` 常量保持一致（默认 `/auth/oidc/callback`）。  
+  如需自定义路径，请同步修改两处。
+- `meta: { public: true }` 确保路由守卫不会在登录完成前将用户重定向到登录页。  
+  如果项目的路由守卫使用不同的字段标记公开路由，请按实际情况调整。
 
 ### 5. 配置环境变量
 
@@ -140,6 +149,44 @@ pnpm dev
 docker restart api-dev
 docker restart web-dev
 ```
+
+## OIDC 回调流程
+
+集成采用**纯重定向**方式，后端不渲染任何 HTML，所有 UI 由前端 Vue 页面负责。
+
+```
+用户点击 SSO 登录
+      │
+      ▼
+LoginView.vue 请求 /api/auth/oidc/login-url
+      │
+      ▼
+浏览器跳转到 OIDC Provider 授权页
+      │
+      ▼（用户授权后）
+OIDC Provider 回调 → GET /api/auth/oidc/callback?code=...&state=...
+      │
+      ├─ 认证失败 → 302 重定向到 /login?oidc_error=<错误信息>
+      │                    │
+      │                    ▼
+      │             LoginView.vue 读取 oidc_error 参数并显示错误提示
+      │
+      └─ 认证成功 → 302 重定向到 /auth/oidc/callback?token=...&user_id=...&username=...
+                           │
+                           ▼
+                    OIDCCallbackView.vue 读取 URL 参数
+                    → 写入 localStorage / Pinia store
+                    → 跳转到目标页面
+```
+
+**前端路由路径与后端常量的对应关系：**
+
+| 说明 | 前端路由 `path` | 后端常量 |
+|------|----------------|---------|
+| 成功回调页 | `/auth/oidc/callback` | `FRONTEND_CALLBACK_PATH`（`auth_router_oidc.py`） |
+| 错误重定向页 | `/login` | `FRONTEND_LOGIN_PATH`（`auth_router_oidc.py`） |
+
+如需自定义路径，两处必须同步修改。
 
 ## 配置说明
 
