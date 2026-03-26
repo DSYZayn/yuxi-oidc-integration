@@ -270,7 +270,7 @@
 
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { useInfoStore } from '@/stores/info'
 import { useAgentStore } from '@/stores/agent'
@@ -285,6 +285,7 @@ import {
 } from 'lucide-vue-next'
 
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
 const infoStore = useInfoStore()
 const agentStore = useAgentStore()
@@ -616,6 +617,11 @@ onMounted(async () => {
   if (userStore.isLoggedIn) {
     router.push('/')
     return
+  }
+
+  // 显示 OIDC 认证失败的错误信息（由后端重定向携带）
+  if (route.query.oidc_error) {
+    errorMessage.value = String(route.query.oidc_error)
   }
 
   // 首先检查服务器健康状态

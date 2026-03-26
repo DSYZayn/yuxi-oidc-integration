@@ -2,10 +2,9 @@
 
 此模块包含 OIDC 认证相关的路由，需要被导入到主 auth_router.py 中使用。
 """
-import json
-from pathlib import Path
+from urllib.parse import urlencode
 from fastapi import Request
-from fastapi.templating import Jinja2Templates
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from yuxi.utils import logger
@@ -19,8 +18,10 @@ from server.utils.oidc_utils import OIDCUtils
 from server.utils.common_utils import log_operation
 from yuxi.utils.datetime_utils import utc_now_naive
 
-# Jinja2 模板引擎，模板文件位于 backend/server/templates/
-_templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
+# 前端 OIDC 回调路由路径（与 web/src/router/index.js 中的路由保持一致）
+FRONTEND_CALLBACK_PATH = "/auth/oidc/callback"
+# 登录页路径（用于错误重定向）
+FRONTEND_LOGIN_PATH = "/login"
 
 
 # =============================================================================
@@ -129,25 +130,32 @@ async def update_oidc_user_login(db, user: User) -> None:
     await db.commit()
 
 
-def _render_callback(request: Request, token_data: dict, redirect_path: str = "/"):
-    """渲染 OIDC 回调页面，将 token 存入 localStorage 后自动跳转到前端"""
-    return _templates.TemplateResponse(
-        "oidc_callback.html",
-        {
-            "request": request,
-            "token_data_json": json.dumps(token_data, ensure_ascii=True),
-            "frontend_callback_url": "/auth/oidc/callback",
-        },
-    )
+def _redirect_to_callback(token_data: dict) -> RedirectResponse:
+    """成功后重定向到前端 OIDC 回调页面，通过 URL 参数传递登录数据"""
+    params: dict = {
+        "token": token_data["access_token"],
+        "user_id": str(token_data["user_id"]),
+        "username": token_data["username"],
+        "user_id_login": token_data["user_id_login"],
+        "role": token_data["role"],
+    }
+    if token_data.get("phone_number"):
+        params["phone_number"] = token_data["phone_number"]
+    if token_data.get("avatar"):
+        params["avatar"] = token_data["avatar"]
+    if token_data.get("department_id") is not None:  # 0 is a valid id, so check explicitly
+        params["department_id"] = str(token_data["department_id"])
+    if token_data.get("department_name"):
+        params["department_name"] = token_data["department_name"]
+
+    url = f"{FRONTEND_CALLBACK_PATH}?{urlencode(params)}"
+    return RedirectResponse(url=url, status_code=302)
 
 
-def _render_error(request: Request, error_message: str, status_code: int = 400):
-    """渲染 OIDC 错误页面"""
-    return _templates.TemplateResponse(
-        "oidc_error.html",
-        {"request": request, "error_message": error_message},
-        status_code=status_code,
-    )
+def _redirect_to_login_with_error(error_message: str) -> RedirectResponse:
+    """失败时重定向到登录页并携带错误信息"""
+    url = f"{FRONTEND_LOGIN_PATH}?{urlencode({'oidc_error': error_message})}"
+    return RedirectResponse(url=url, status_code=302)
 
 
 # =============================================================================
@@ -164,34 +172,33 @@ async def get_oidc_config_handler():
 
 
 async def oidc_callback_handler(request: Request, code: str, state: str, db):
-    """处理 OIDC 回调 - 返回 HTML 页面而不是 JSON"""
-    from fastapi import HTTPException, status
+    """处理 OIDC 回调 - 重定向到前端 Vue 路由"""
 
     # 验证 state
     state_data = OIDCUtils.verify_state(state)
     if not state_data:
-        return _render_error(request, "登录会话已过期，请返回登录页重试", status_code=400)
+        return _redirect_to_login_with_error("登录会话已过期，请返回登录页重试")
 
     # 用授权码交换令牌
     token_response = await OIDCUtils.exchange_code_for_token(code)
     if not token_response:
-        return _render_error(request, "无法获取访问令牌，请返回登录页重试", status_code=400)
+        return _redirect_to_login_with_error("无法获取访问令牌，请返回登录页重试")
 
     access_token = token_response.get("access_token")
     if not access_token:
-        return _render_error(request, "无法获取访问令牌，请返回登录页重试", status_code=400)
+        return _redirect_to_login_with_error("无法获取访问令牌，请返回登录页重试")
 
     # 获取用户信息
     userinfo = await OIDCUtils.get_userinfo(access_token)
     if not userinfo:
-        return _render_error(request, "无法获取用户信息，请返回登录页重试", status_code=400)
+        return _redirect_to_login_with_error("无法获取用户信息，请返回登录页重试")
 
     # 提取用户信息
     extracted_info = OIDCUtils.extract_user_info(userinfo)
     sub = extracted_info["sub"]
 
     if not sub:
-        return _render_error(request, "无法获取用户标识，请返回登录页重试", status_code=400)
+        return _redirect_to_login_with_error("无法获取用户标识，请返回登录页重试")
 
     # 查找或创建用户
     user = await find_user_by_oidc_sub(db, sub)
@@ -208,11 +215,11 @@ async def oidc_callback_handler(request: Request, code: str, state: str, db):
         # 创建新用户
         user = await create_oidc_user(db, extracted_info, department_id)
     else:
-        return _render_error(request, "用户未注册，请联系管理员开通账号", status_code=403)
+        return _redirect_to_login_with_error("用户未注册，请联系管理员开通账号")
 
     # 检查用户是否被删除
     if user.is_deleted:
-        return _render_error(request, "该账户已注销", status_code=403)
+        return _redirect_to_login_with_error("该账户已注销")
 
     # 生成访问令牌
     token_data = {"sub": str(user.id)}
@@ -241,11 +248,8 @@ async def oidc_callback_handler(request: Request, code: str, state: str, db):
         "department_name": department_name,
     }
 
-    # 获取重定向路径
-    redirect_path = state_data.get("redirect_path", "/")
-
-    # 渲染回调页面，自动处理登录并重定向
-    return _render_callback(request, response_data, redirect_path)
+    # 重定向到前端 OIDC 回调 Vue 页面
+    return _redirect_to_callback(response_data)
 
 
 async def oidc_login_url_handler(redirect_path: str = "/"):

@@ -4,7 +4,7 @@ from yuxi.utils import logger
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status, UploadFile, File
 from fastapi.security import OAuth2PasswordRequestForm
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -856,11 +856,11 @@ async def get_oidc_login_url(redirect_path: str = "/"):
     return await oidc_login_url_handler(redirect_path)
 
 
-@auth.get("/oidc/callback", response_class=HTMLResponse)
+@auth.get("/oidc/callback", response_class=RedirectResponse)
 async def oidc_callback(
     code: str,
     state: str,
     db: AsyncSession = Depends(get_db)
 ):
-    """处理 OIDC 回调 - 返回 HTML 页面"""
+    """处理 OIDC 回调 - 重定向到前端 Vue 路由"""
     return await oidc_callback_handler(None, code, state, db)

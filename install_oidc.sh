@@ -72,13 +72,6 @@ if [ -f "$SCRIPT_DIR/backend/server/routers/auth_router_oidc.py" ]; then
     cp "$SCRIPT_DIR/backend/server/routers/auth_router_oidc.py" "$TARGET_DIR/backend/server/routers/"
     info "已安装: backend/server/routers/auth_router_oidc.py"
 fi
-
-# 复制 Jinja2 HTML 模板
-if [ -d "$SCRIPT_DIR/backend/server/templates" ]; then
-    mkdir -p "$TARGET_DIR/backend/server/templates"
-    cp "$SCRIPT_DIR/backend/server/templates/"*.html "$TARGET_DIR/backend/server/templates/"
-    info "已安装: backend/server/templates/ (OIDC HTML 模板)"
-fi
 # 覆盖 auth_router.py
 if [ -f "$SCRIPT_DIR/backend/server/routers/auth_router.py" ]; then
     cp "$SCRIPT_DIR/backend/server/routers/auth_router.py" "$TARGET_DIR/backend/server/routers/auth_router.py"
