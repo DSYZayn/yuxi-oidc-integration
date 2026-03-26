@@ -10,6 +10,9 @@
 - ✅ 所有参数通过环境变量配置
 - ✅ 不影响原有账号体系
 - ✅ 支持自定义用户名、邮箱、姓名映射字段
+<img width="1920" height="913" alt="1774525090070_d" src="https://github.com/user-attachments/assets/6616b84d-c7b1-4960-9c19-d6e89b19bac8" />
+
+<img width="2560" height="1359" alt="image" src="https://github.com/user-attachments/assets/beb2861e-2948-4894-ac8a-44986ce50b99" />
 
 ## 文件结构
 
