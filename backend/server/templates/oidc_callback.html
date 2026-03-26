@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录处理中...</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            text-align: center;
+            color: white;
+            padding: 40px;
+        }
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        h1 {
+            font-size: 24px;
+            font-weight: 500;
+            margin-bottom: 10px;
+        }
+        p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .error {
+            background: rgba(255, 255, 255, 0.95);
+            color: #333;
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 400px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+        }
+        .error h2 {
+            color: #e74c3c;
+            margin-bottom: 10px;
+        }
+        .error p {
+            color: #666;
+            margin-bottom: 20px;
+        }
+        .error button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .error button:hover {
+            background: #5a6fd6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="container">
+        <div class="spinner"></div>
+        <h1>登录成功</h1>
+        <p>正在跳转，请稍候...</p>
+    </div>
+
+    <script>
+        (function() {
+            try {
+                // Token 数据
+                const tokenData = {{ token_data_json | safe }};
+
+                // 存储 token 到 localStorage
+                localStorage.setItem('user_token', tokenData.access_token);
+
+                // 构建前端回调 URL，传递必要的数据
+                const params = new URLSearchParams({
+                    token: tokenData.access_token,
+                    user_id: String(tokenData.user_id),
+                    username: tokenData.username,
+                    user_id_login: tokenData.user_id_login,
+                    role: tokenData.role,
+                });
+
+                if (tokenData.phone_number) {
+                    params.set('phone_number', tokenData.phone_number);
+                }
+                if (tokenData.avatar) {
+                    params.set('avatar', tokenData.avatar);
+                }
+                if (tokenData.department_id) {
+                    params.set('department_id', String(tokenData.department_id));
+                }
+                if (tokenData.department_name) {
+                    params.set('department_name', tokenData.department_name);
+                }
+
+                // 重定向到前端回调页面
+                const redirectUrl = '{{ frontend_callback_url }}?' + params.toString();
+                window.location.href = redirectUrl;
+
+            } catch (error) {
+                console.error('OIDC callback error:', error);
+                document.getElementById('container').innerHTML = `
+                    <div class="error">
+                        <h2>登录处理失败</h2>
+                        <p>无法完成登录，请返回登录页重试</p>
+                        <button onclick="window.location.href='/login'">返回登录页</button>
+                    </div>
+                `;
+            }
+        })();
+    </script>
+</body>
+</html>
