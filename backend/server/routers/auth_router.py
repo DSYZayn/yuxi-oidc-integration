@@ -27,14 +27,11 @@ from yuxi.storage.minio import aupload_file_to_minio
 from yuxi.utils.datetime_utils import utc_now_naive
 
 # OIDC 认证相关导入
-from server.utils.oidc_config import oidc_config
-from server.utils.oidc_utils import OIDCUtils
 from server.routers.auth_router_oidc import (
     get_oidc_config_handler,
     oidc_callback_handler,
     oidc_login_url_handler,
     OIDCConfigResponse,
-    OIDCLoginResponse,
 )
 
 # 创建路由器

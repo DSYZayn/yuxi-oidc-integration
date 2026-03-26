@@ -74,7 +74,7 @@ if [ -f "$SCRIPT_DIR/backend/server/routers/auth_router_oidc.py" ]; then
 fi
 # 覆盖 auth_router.py
 if [ -f "$SCRIPT_DIR/backend/server/routers/auth_router.py" ]; then
-    cp "$SCRIPT_DIR/backend/server/routers/auth_router.py" "$TARGET_DIR/backend/server/routers/"
+    cp "$SCRIPT_DIR/backend/server/routers/auth_router.py" "$TARGET_DIR/backend/server/routers/auth_router.py"
     info "已覆盖: backend/server/routers/auth_router.py"
 fi
 
