@@ -32,6 +32,7 @@ class OIDCConfigResponse(BaseModel):
     """OIDC 配置响应"""
     enabled: bool
     login_url: str | None = None
+    provider_name: str | None = "OIDC登录"
 
 
 class OIDCCallbackRequest(BaseModel):
@@ -168,7 +169,8 @@ async def get_oidc_config_handler():
         return OIDCConfigResponse(enabled=False)
 
     login_url = await OIDCUtils.build_authorization_url()
-    return OIDCConfigResponse(enabled=True, login_url=login_url)
+    provider_name = oidc_config.provider_name
+    return OIDCConfigResponse(enabled=True, login_url=login_url, provider_name=provider_name)
 
 
 async def oidc_callback_handler(request: Request, code: str, state: str, db):

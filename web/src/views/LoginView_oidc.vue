@@ -216,14 +216,14 @@
                   </a-form-item>
                 </a-form>
 
-                <!-- OIDC 登录选项 - 修复：立即显示骨架屏，检查完成后显示按钮 -->
-                <div v-if="oidcChecking || oidcEnabled" class="oidc-login-section">
+                <!-- OIDC 登录选项  -->
+                <div v-if="oidcChecking || oidcEnabled" class="third-party-login">
                   <div class="divider">
                     <span>或使用以下方式登录</span>
                   </div>
-                  <div class="oidc-login-button">
+                  <div class="login-icons">
                     <!-- 检查中显示骨架屏 -->
-                    <div v-if="oidcChecking" class="oidc-skeleton">
+                    <div v-if="oidcChecking" class="login-skeleton">
                       <a-skeleton-button block size="large" :active="true" />
                     </div>
                     <!-- 检查完成后显示按钮 -->
@@ -259,7 +259,7 @@
       <div class="footer-links">
         <a href="https://github.com/xerrors" target="_blank">联系我们</a>
         <span class="divider">|</span>
-        <a href="https://github.com/xerrors/Yuxi-Know" target="_blank">使用帮助</a>
+        <a href="https://github.com/xerrors/Yuxi" target="_blank">使用帮助</a>
       </div>
       <div class="copyright">
         &copy; {{ new Date().getFullYear() }} {{ brandName }}. All Rights Reserved.
@@ -329,11 +329,11 @@ const serverStatus = ref('loading')
 const serverError = ref('')
 const healthChecking = ref(false)
 
-// OIDC 相关状态 - 修复：添加 oidcChecking 状态
+// OIDC 相关状态
 const oidcEnabled = ref(false)
 const oidcLoading = ref(false)
-const oidcChecking = ref(true)  // 新增：检查中状态
-const oidcButtonText = ref('SSO 登录')
+const oidcChecking = ref(true) 
+const oidcButtonText = ref('OIDC 登录')
 
 // 登录锁定相关状态
 const isLocked = ref(false)
@@ -529,14 +529,14 @@ const handleOIDCLogin = async () => {
   }
 }
 
-// 检查 OIDC 配置 - 修复：添加 oidcChecking 状态管理
+// 检查 OIDC 配置
 const checkOIDCConfig = async () => {
   oidcChecking.value = true
   try {
     const config = await authApi.getOIDCConfig()
     oidcEnabled.value = config.enabled
     if (config.provider_name) {
-      oidcButtonText.value = `${config.provider_name} 登录`
+      oidcButtonText.value = config.provider_name
     }
   } catch (error) {
     console.error('检查 OIDC 配置失败:', error)
@@ -630,7 +630,7 @@ onMounted(async () => {
   // 检查是否是首次运行
   await checkFirstRunStatus()
 
-  // 检查 OIDC 配置（并行执行，不阻塞其他检查）
+  // 检查 OIDC 配置
   checkOIDCConfig()
 })
 
@@ -824,15 +824,12 @@ onUnmounted(() => {
   margin-bottom: 14px;
 }
 
-/* OIDC 登录区域样式 */
-.oidc-login-section {
-  margin-top: 24px;
-
+.third-party-login {
+  margin-top: 16px;
   .divider {
     position: relative;
     text-align: center;
-    margin: 20px 0;
-
+    margin: 24px 0 16px;
     &::before,
     &::after {
       content: '';
@@ -842,25 +839,22 @@ onUnmounted(() => {
       height: 1px;
       background-color: var(--gray-200);
     }
-
     &::before {
       left: 0;
     }
-
     &::after {
       right: 0;
     }
-
     span {
       display: inline-block;
-      padding: 0 12px;
+      padding: 0 8px;
       background-color: var(--gray-0);
       color: var(--gray-400);
-      font-size: 13px;
+      font-size: 12px;
     }
   }
 
-  .oidc-login-button {
+  .login-icons {
     :deep(.ant-btn) {
       display: flex;
       align-items: center;
@@ -883,7 +877,7 @@ onUnmounted(() => {
   }
 
   /* 修复：添加骨架屏样式 */
-  .oidc-skeleton {
+  .login-skeleton {
     :deep(.ant-skeleton-button) {
       width: 100% !important;
       height: 44px;

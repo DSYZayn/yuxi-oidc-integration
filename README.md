@@ -1,7 +1,7 @@
 # Yuxi-Know OIDC 认证集成指南
 
 本文档介绍如何为 Yuxi-Know 项目集成 OIDC (OpenID Connect) 认证登录功能。
-(由于是纯vibe coding实现，所以没敢直接pr，而是以插件项目提供)
+
 ## 功能特性
 
 - ✅ 支持标准 OIDC 协议
@@ -105,6 +105,9 @@ cp web/src/views/LoginView_oidc.vue /path/to/your/project/web/src/views/LoginVie
 ```bash
 # 启用 OIDC
 OIDC_ENABLED=true
+
+# 认证源名称（显示在登录按钮上的文字，建议简短且具有辨识度, 默认: OIDC登录）
+OIDC_PROVIDER_NAME="OIDC登录"
 
 # OIDC Provider 配置
 OIDC_ISSUER_URL=https://your-oidc-provider.com

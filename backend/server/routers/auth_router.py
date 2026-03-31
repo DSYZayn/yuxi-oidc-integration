@@ -4,7 +4,7 @@ from yuxi.utils import logger
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status, UploadFile, File
 from fastapi.security import OAuth2PasswordRequestForm
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -790,10 +790,10 @@ async def impersonate_user(
     current_user: User = Depends(get_superadmin_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """模拟用户登录（超级管理员专用）"""
+    """超级管理员模拟其他用户登录"""
+    # 查找目标用户
     result = await db.execute(select(User).filter(User.id == user_id, User.is_deleted == 0))
     target_user = result.scalar_one_or_none()
-
     if target_user is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -801,30 +801,27 @@ async def impersonate_user(
         )
 
     # 不能模拟超级管理员
-    if target_user.role == "superadmin" and target_user.id != current_user.id:
+    if target_user.role == "superadmin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="不能模拟其他超级管理员",
+            detail="不能模拟超级管理员账户",
         )
 
     # 生成访问令牌
     token_data = {"sub": str(target_user.id)}
     access_token = AuthUtils.create_access_token(token_data)
 
-    # 记录操作
-    await log_operation(
-        db,
-        current_user.id,
-        "模拟登录",
-        f"超级管理员 {current_user.username} 模拟用户 {target_user.username} 登录",
-        request,
-    )
-
     # 获取部门名称
     department_name = None
     if target_user.department_id:
         result = await db.execute(select(Department.name).filter(Department.id == target_user.department_id))
         department_name = result.scalar_one_or_none()
+
+    # 记录操作（危险操作标记）
+    await log_operation(db, current_user.id, "⚠️ 危险操作-模拟用户", f"模拟用户: {target_user.username}", request)
+
+    # 控制台警告日志
+    logger.warning(f"⚠️ [危险操作] 超级管理员 {current_user.username} 模拟登录用户: {target_user.username}")
 
     return {
         "access_token": access_token,

@@ -23,6 +23,9 @@ class OIDCConfig(BaseModel):
     userinfo_endpoint: str = Field(default="", description="UserInfo 端点 URL")
     end_session_endpoint: str = Field(default="", description="登出端点 URL")
 
+    # 认证源名称
+    provider_name: str = Field(default="OIDC登录", description="认证源名称，显示在登录按钮上的文字")
+
     # 请求的 scope
     scopes: str = Field(default="openid profile email", description="请求的 scope")
 
@@ -54,6 +57,7 @@ class OIDCConfig(BaseModel):
 
         return cls(
             enabled=enabled,
+            provider_name=os.environ.get("OIDC_PROVIDER_NAME", "OIDC登录"),
             issuer_url=os.environ.get("OIDC_ISSUER_URL", ""),
             client_id=os.environ.get("OIDC_CLIENT_ID", ""),
             client_secret=os.environ.get("OIDC_CLIENT_SECRET", ""),
