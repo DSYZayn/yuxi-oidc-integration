@@ -20,6 +20,7 @@
 yuxi-oidc-integration/
 ├── README.md                              # 本文件
 ├── .env.template                          # 更新后的环境变量模板
+├── install_oidc.sh                        # 自动安装脚本
 ├── backend/
 │   └── server/
 │       ├── routers/
